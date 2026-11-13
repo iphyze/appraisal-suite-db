@@ -5,7 +5,9 @@ require 'vendor/autoload.php';
 require_once 'includes/connection.php';
 require_once 'includes/authMiddleware.php';
 require_once 'includes/AdminStaffScope.php';
+require_once 'includes/AppraisalUpdateEligibility.php';
 require_once __DIR__ . '/AppraisalHelpers.php';
+require_once 'includes/AppraisalObjectiveChanges.php';
 require_once 'includes/ContentTranslationAppraisal.php';
 
 header('Content-Type: application/json');
@@ -217,7 +219,13 @@ try {
     }
 
     $dept = esc($conn, $staff['department'] ?? '');
+    if ($existing) {
+        $draft = fetchOneRaw($conn, "SELECT sop.id FROM staff_objective_plans sop INNER JOIN appraisal_section_scores sc ON sc.section_id=sop.section_id WHERE sc.appraisal_id={$appraisalId} AND sop.staff_user_id={$staffUserId} AND sop.cycle_id={$cycleId} AND sop.status='draft' LIMIT 1");
+        if ($draft) throw new Exception('Lock the objective plan before updating the appraisal.', 409);
+    }
     $formSections = [];
+    $objectiveDiffSections = [];
+    $requiresObjectiveRerating = $existing && !empty($existing['objectives_changed_at']);
     foreach ($sections as $section) {
         $section['base_weight'] = (float)$section['weight'];
         if ($existing && isset($existingSectionRating[(int)$section['id']]['section_weight'])) {
@@ -304,8 +312,15 @@ try {
                 }
             }
 
-            if ($existing) {
-                // Existing appraisals always reopen from their own snapshots.
+            if ($existing && $requiresObjectiveRerating && $objectiveSetupEnabled) {
+                // Only a changed, re-locked plan replaces the submitted KPI set.
+                // Matching IDs retain the saved rating/comment/actual-result below.
+                $questionRows = apocLockedObjectiveRows($conn, $companyId, $sectionId, $staffUserId);
+                $originalRows = fetchAllRaw($conn, "SELECT kpi_question_id, question_text, objective_target, evidence_source, question_weight FROM appraisal_kpi_responses WHERE appraisal_id={$appraisalId} AND section_id={$sectionId}");
+                $diff = apocDifference($originalRows, $questionRows, $sectionId);
+                if ($diff['added'] || $diff['removed'] || $diff['changed']) $objectiveDiffSections[] = $diff;
+            } elseif ($existing) {
+                // An unchanged appraisal always reopens from its own snapshots.
                 $questionRows = fetchAllRaw($conn, "
                     SELECT r.kpi_question_id AS id, r.question_text, r.objective_target, r.evidence_source, r.actual_result, r.rating_comment,
                            q.objective_code, q.department, q.supervisor_id, q.staff_user_id, q.sort_order,
@@ -431,8 +446,28 @@ try {
         ]);
     }
 
+    $editEligibility = $existing ? apCanSupervisorUpdateAppraisal($conn, $userData, null, $existing) : null;
+    if ($existing) {
+        $existing['can_adjust_objectives'] = $editEligibility['allowed'] ? 1 : 0;
+        $existing['can_update_appraisal'] = $editEligibility['allowed'] ? 1 : 0;
+        $existing['updates_left'] = $editEligibility['updates_left'];
+        $existing['reason_key'] = $editEligibility['reason_key'];
+        $existing['objectives_changed_since_submission'] = !empty($existing['objectives_changed_at']) ? 1 : 0;
+    }
     $formResponse = [
         'mode' => $existing ? 'edit' : 'create',
+        'can_adjust_objectives' => $editEligibility && $editEligibility['allowed'] ? 1 : 0,
+        'can_update_appraisal' => $editEligibility && $editEligibility['allowed'] ? 1 : 0,
+        'updates_left' => $editEligibility['updates_left'] ?? null,
+        'reason_key' => $editEligibility['reason_key'] ?? null,
+        'objectives_changed_since_submission' => $existing && !empty($existing['objectives_changed_at']) ? 1 : 0,
+        'objective_plan_signature' => $requiresObjectiveRerating ? apocPlanSignature($conn, $appraisalId, $companyId, $cycleId, $staffUserId) : null,
+        'objective_change_summary' => [
+            'sections' => $objectiveDiffSections,
+            'added' => array_merge([], ...array_column($objectiveDiffSections, 'added')),
+            'removed' => array_merge([], ...array_column($objectiveDiffSections, 'removed')),
+            'changed' => array_merge([], ...array_column($objectiveDiffSections, 'changed')),
+        ],
         'appraisal' => $existing,
         'cycle' => $cycle,
         'staff' => array_merge($staff, ['full_name' => fullName($staff)]),
@@ -450,5 +485,7 @@ try {
 } catch (Exception $e) {
     $code = $e->getCode();
     $code = $code >= 400 && $code <= 599 ? $code : 500;
-    jsonResponse('Failed', $e->getMessage(), [], $code);
+    http_response_code($code);
+    echo json_encode(array_merge(['status' => 'Failed', 'message' => $e->getMessage(), 'data' => []], apiExceptionMeta($e, $code)));
+
 }

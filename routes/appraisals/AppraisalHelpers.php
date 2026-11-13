@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../includes/ApiException.php';
+require_once __DIR__ . '/../../includes/AppraisalObjectiveChanges.php';
 
 function apEsc($conn, $value) { return $conn->real_escape_string(trim((string)$value)); }
 function apFetchOne($conn, $sql) { $r = $conn->query($sql); if (!$r) throw new Exception('Database error: '.$conn->error, 500); return $r->fetch_assoc(); }
@@ -328,6 +329,7 @@ function apSaveResponsesAndScores($conn, $appraisalId, $companyId, $cycleId, arr
     $enforceObjectivePlan = !empty($context['enforce_objective_plan']);
     $isEdit = !empty($context['is_edit']);
     $preserveResponseSnapshots = !empty($context['preserve_response_snapshots']);
+    $reRateObjectives = $isEdit && !empty($context['re_rate_objectives']);
     $sectionScopeSql = $isEdit
         ? " AND EXISTS (SELECT 1 FROM appraisal_section_scores saved_sc WHERE saved_sc.appraisal_id = {$appraisalId} AND saved_sc.section_id = s.id)"
         : " AND s.is_active = 1";
@@ -479,6 +481,12 @@ function apSaveResponsesAndScores($conn, $appraisalId, $companyId, $cycleId, arr
         }
 
         $section = $sectionMap[$sectionId];
+        // Only KPI sections with an actual objective plan can use the re-rating
+        // exception; legacy/no-plan sections keep their original snapshot IDs.
+        $reRateThisSection = $reRateObjectives
+            && $section['type'] === 'kpi'
+            && (int)($section['objective_setup_enabled'] ?? 0) === 1
+            && (bool) apFetchOne($conn, 'SELECT id FROM staff_objective_plans WHERE section_id=' . $sectionId . ' AND staff_user_id=' . $staffUserId . ' LIMIT 1');
         $responses = $sectionPayload['responses'];
         if (count($responses) === 0) {
             throw new Exception("Section {$section['code']} must contain at least one question.", 400);
@@ -496,7 +504,7 @@ function apSaveResponsesAndScores($conn, $appraisalId, $companyId, $cycleId, arr
                 throw new Exception("The questions for section {$section['code']} must match the original appraisal submission.", 409);
             }
         }
-        if ($isEdit && $section['type'] === 'kpi') {
+        if ($isEdit && $section['type'] === 'kpi' && !$reRateThisSection) {
             $submittedKpiIds = [];
             foreach ($responses as $candidateResponse) {
                 $candidateId = (int)($candidateResponse['question_id'] ?? 0);
@@ -534,6 +542,10 @@ function apSaveResponsesAndScores($conn, $appraisalId, $companyId, $cycleId, arr
             }
         }
 
+        if ($reRateThisSection && $objectivePlanApplies && (!$plan || ($plan['status'] ?? '') !== 'locked')) {
+            throw new Exception('Lock the objective plan before updating the appraisal.', 409);
+        }
+
         if ($objectivePlanApplies) {
             if ((int)($section['objective_force_per_question_ratings'] ?? 1) === 1 && $ratingMode !== 'per_question') {
                 throw new Exception("Section {$section['code']} must be rated per objective for this cycle.", 400);
@@ -544,7 +556,7 @@ function apSaveResponsesAndScores($conn, $appraisalId, $companyId, $cycleId, arr
             }
 
             $objectiveAssignments = apFetchAll($conn, "
-                SELECT ska.kpi_question_id, ska.weight_percent,
+                SELECT ska.kpi_question_id, COALESCE(ska.weight_percent,q.weight_percent) AS weight_percent,
                        COALESCE(ska.target_override,q.measure_target) AS objective_target,
                        COALESCE(ska.evidence_override,q.evidence_source) AS evidence_source,
                        q.question_text
@@ -560,7 +572,7 @@ function apSaveResponsesAndScores($conn, $appraisalId, $companyId, $cycleId, arr
                 $objectiveAssignmentMap[(int)$assignmentRow['kpi_question_id']] = $assignmentRow;
             }
 
-            if ((int)($section['objective_lock_questions_during_appraisal'] ?? 1) === 1) {
+            if ($reRateThisSection || (int)($section['objective_lock_questions_during_appraisal'] ?? 1) === 1) {
                 $payloadIds = [];
                 foreach ($responses as $candidateResponse) {
                     $candidateId = (int)($candidateResponse['question_id'] ?? 0);
@@ -667,12 +679,14 @@ function apSaveResponsesAndScores($conn, $appraisalId, $companyId, $cycleId, arr
                 if ($incomingText === '' && $question) {
                     $incomingText = $question['question_text'];
                 }
-                if ($savedKpiSnapshot) {
+                if ($savedKpiSnapshot && !$reRateThisSection) {
                     $incomingText = (string)$savedKpiSnapshot['question_text'];
                     $isCustom = false;
                     $isEdited = false;
                 }
 
+                // Unchanged edits retain the previous snapshots; a post-submission
+                // re-rating instead follows the authoritative locked plan.
                 // Existing appraisal edits must retain the exact target/evidence
                 // snapshots originally saved, even if the objective library changes later.
                 $objectiveTarget = $savedKpiSnapshot
@@ -686,18 +700,43 @@ function apSaveResponsesAndScores($conn, $appraisalId, $companyId, $cycleId, arr
                         ? ($response['evidence_source'] !== null ? trim((string)$response['evidence_source']) : null)
                         : ($question['evidence_source'] ?? null));
                 $lockedAssignment = $objectiveAssignmentMap[$questionId] ?? null;
+                if ($reRateThisSection && $objectivePlanApplies && !$lockedAssignment) {
+                    throw new ApiException('objective.planMismatch', [], 409, 'Submitted objectives must match the locked objective plan.');
+                }
                 if ($lockedAssignment) {
+                    if ($reRateThisSection && $objectivePlanApplies) {
+                        // An old browser form must never silently rate a newer
+                        // target/evidence/weight. Compare the submitted metadata
+                        // before replacing it with the authoritative plan data.
+                        $sameText = trim((string)($response['question_text'] ?? '')) === trim((string)$lockedAssignment['question_text']);
+                        $sameTarget = trim((string)($response['objective_target'] ?? '')) === trim((string)($lockedAssignment['objective_target'] ?? ''));
+                        $sameEvidence = trim((string)($response['evidence_source'] ?? '')) === trim((string)($lockedAssignment['evidence_source'] ?? ''));
+                        $submittedWeight = $response['question_weight'] ?? $response['weight_percent'] ?? null;
+                        $lockedWeight = $lockedAssignment['weight_percent'] ?? null;
+                        $sameWeight = $questionWeightingMode !== 'custom'
+                            || ($submittedWeight !== null && is_numeric($submittedWeight)
+                                && $lockedWeight !== null && abs((float)$submittedWeight - (float)$lockedWeight) <= 0.001);
+                        if (!$sameText || !$sameTarget || !$sameEvidence || !$sameWeight) {
+                            throw new ApiException('objective.planStale', [], 409, 'The objective plan changed while this form was open. Reload the appraisal before updating.');
+                        }
+
+                        $incomingText = (string)$lockedAssignment['question_text'];
+                        $objectiveTarget = $lockedAssignment['objective_target'] ?? null;
+                        $objectiveEvidence = $lockedAssignment['evidence_source'] ?? null;
+                        $isCustom = false;
+                        $isEdited = false;
+                    }
                     if ((int)($section['objective_lock_questions_during_appraisal'] ?? 1) === 1) {
-                        if (!$preserveResponseSnapshots) {
+                        if (!$preserveResponseSnapshots || $reRateThisSection) {
                             $incomingText = (string)$lockedAssignment['question_text'];
                         }
                         $isCustom = false;
                         $isEdited = false;
                     }
-                    if (!$preserveResponseSnapshots || !array_key_exists('objective_target', $response)) {
+                    if (!$preserveResponseSnapshots || $reRateThisSection || !array_key_exists('objective_target', $response)) {
                         $objectiveTarget = $lockedAssignment['objective_target'] ?? $objectiveTarget;
                     }
-                    if (!$preserveResponseSnapshots || !array_key_exists('evidence_source', $response)) {
+                    if (!$preserveResponseSnapshots || $reRateThisSection || !array_key_exists('evidence_source', $response)) {
                         $objectiveEvidence = $lockedAssignment['evidence_source'] ?? $objectiveEvidence;
                     }
                 }
@@ -714,13 +753,15 @@ function apSaveResponsesAndScores($conn, $appraisalId, $companyId, $cycleId, arr
                 if ($questionWeightingMode === 'custom') {
                     $responseWeight = $response['question_weight'] ?? $response['weight_percent'] ?? null;
                     $savedWeight = $savedKpiSnapshot['question_weight'] ?? null;
-                    $rawQuestionWeight = $savedKpiSnapshot && $savedWeight !== null && $savedWeight !== ''
+                    $rawQuestionWeight = $reRateThisSection && $lockedAssignment
+                        ? $lockedAssignment['weight_percent']
+                        : (!$reRateThisSection && $savedKpiSnapshot && $savedWeight !== null && $savedWeight !== ''
                         ? $savedWeight
-                        : ($preserveResponseSnapshots && $responseWeight !== null && $responseWeight !== ''
+                        : ($preserveResponseSnapshots && !$reRateThisSection && $responseWeight !== null && $responseWeight !== ''
                             ? $responseWeight
                             : (($lockedAssignment && $lockedAssignment['weight_percent'] !== null)
                                 ? $lockedAssignment['weight_percent']
-                                : $responseWeight));
+                                : $responseWeight)));
                     if ($rawQuestionWeight === null || $rawQuestionWeight === '' || !is_numeric($rawQuestionWeight)) {
                         throw new Exception("A weight is required for every KPI question when custom weighting is enabled in section {$section['code']}.", 400);
                     }
@@ -734,7 +775,7 @@ function apSaveResponsesAndScores($conn, $appraisalId, $companyId, $cycleId, arr
                     $weightedRatingTotal += ((float)$rating) * ($questionWeight / $questionWeightDenominator);
                 }
 
-                if (!$savedKpiSnapshot && (!$question || $isCustom || $isEdited || trim((string)$question['question_text']) !== $incomingText)) {
+                if (!$reRateThisSection && !$savedKpiSnapshot && (!$question || $isCustom || $isEdited || trim((string)$question['question_text']) !== $incomingText)) {
                     $questionTextForInsert = apEsc($conn, $incomingText);
                     $sortOrder = isset($response['sort_order']) ? (int)$response['sort_order'] : 0;
                     $departmentSql = $staffDepartment !== '' ? "'{$staffDepartment}'" : "''";
@@ -768,6 +809,13 @@ function apSaveResponsesAndScores($conn, $appraisalId, $companyId, $cycleId, arr
                     throw new Exception("Actual result is required for every objective in section {$section['code']}.", 400);
                 }
                 $actualResultSql = $actualResult !== '' ? "'" . apEsc($conn, $actualResult) . "'" : 'NULL';
+                if ($questionWeightingMode === 'equal') {
+                    // Save the locked-plan weight as metadata without changing the
+                    // existing equal-weighted average. Keep it on later edits.
+                    $questionWeight = $reRateThisSection && $lockedAssignment
+                        ? ($lockedAssignment['weight_percent'] === null ? null : (float)$lockedAssignment['weight_percent'])
+                        : ($savedKpiSnapshot['question_weight'] ?? null);
+                }
                 $questionWeightSql = $questionWeight === null ? 'NULL' : (string)(float)$questionWeight;
                 if (!$conn->query("INSERT INTO appraisal_kpi_responses (appraisal_id, section_id, kpi_question_id, question_text, objective_target, evidence_source, actual_result, question_weight, rating, rating_comment) VALUES ({$appraisalId}, {$sectionId}, {$questionId}, '{$questionText}', {$objectiveTargetSql}, {$objectiveEvidenceSql}, {$actualResultSql}, {$questionWeightSql}, {$ratingSql}, {$ratingCommentSql})")) {
                     throw new Exception('Unable to save KPI appraisal response: ' . $conn->error, 500);
@@ -1066,7 +1114,9 @@ function apSaveRevisionSnapshot($conn, int $appraisalId, int $companyId, int $re
 function apRevisionHistory($conn, int $appraisalId): array {
     $rows = apFetchAll($conn, "\n        SELECT ar.id, ar.revision_no, ar.action, ar.appraisal_summary, ar.kpi_rating,\n               ar.evaluation_statement, ar.status_upgrade, ar.salary_upgrade, ar.development,\n               ar.serious_breach_declared, ar.serious_breach_reason, ar.serious_breach_reference, ar.raw_appraisal_summary,\n               ar.section_scores_json, ar.created_by, ar.created_at,\n               TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))) AS created_by_name,\n               u.email AS created_by_email\n        FROM appraisal_revisions ar\n        LEFT JOIN users u ON u.id = ar.created_by\n        WHERE ar.appraisal_id = {$appraisalId}\n        ORDER BY ar.revision_no DESC, ar.id DESC\n    ");
 
+    $objectiveEventsByRevision = apocRevisionEvents($conn, $appraisalId);
     foreach ($rows as &$row) {
+        $row['objective_changes'] = $objectiveEventsByRevision[(int)$row['revision_no']] ?? [];
         $decoded = json_decode((string)($row['section_scores_json'] ?? ''), true);
         $row['section_scores'] = is_array($decoded) ? $decoded : [];
         unset($row['section_scores_json']);

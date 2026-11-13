@@ -5,6 +5,7 @@ require 'vendor/autoload.php';
 require_once 'includes/connection.php';
 require_once 'includes/authMiddleware.php';
 require_once 'includes/AdminStaffScope.php';
+require_once 'includes/AppraisalUpdateEligibility.php';
 require_once __DIR__ . '/../utils/Mailer.php';
 require_once __DIR__ . '/../utils/EmailTemplates.php';
 require_once __DIR__ . '/../utils/Notifications.php';
@@ -44,53 +45,7 @@ try {
     ");
     if (!$appraisal) throw new Exception('Appraisal not found.', 404);
 
-    if ($loggedInRoleKey === 'admin' && (int)$appraisal['company_id'] !== $loggedInCompanyId) {
-        throw new Exception('Unauthorized: This appraisal does not belong to your company.', 403);
-    }
-    if ($loggedInRoleKey === 'admin' && (int)$appraisal['staff_user_id'] !== $loggedInUserId) {
-        $subject = apFetchOne($conn, "SELECT u.id, u.company_id, u.staff_type, r.name AS role_name FROM users u INNER JOIN roles r ON r.id=u.role_id WHERE u.id=" . (int)$appraisal['staff_user_id'] . " LIMIT 1");
-        if ($subject) $subject['staff_type'] = $subject['staff_type'] ?? ($appraisal['staff_type'] ?? null);
-        if ($subject && !staffScopeAllowsSubject(
-            $conn, $userData, null, $subject, (int)$appraisal['cycle_id'], (int)$appraisal['supervisor_id']
-        )) {
-            throw new Exception('Unauthorized: This appraisal is outside your staff scope.', 403);
-        }
-    }
-    $isConductingAppraiser = userCanConductAppraisals($userData)
-        && (int) $appraisal['supervisor_id'] === $loggedInUserId;
-
-    if (!$isConductingAppraiser) {
-        throw new Exception('Unauthorized: Only the assigned supervisor can update this appraisal.', 403);
-    }
-
-    $activeAssignment = apFetchOne($conn, "
-        SELECT id
-        FROM supervisor_assignments
-        WHERE cycle_id = " . (int) $appraisal['cycle_id'] . "
-          AND staff_id = " . (int) $appraisal['staff_user_id'] . "
-          AND supervisor_id = {$loggedInUserId}
-        LIMIT 1
-    ");
-
-    if (!$activeAssignment) {
-        throw new Exception('This employee is no longer assigned to you for the appraisal cycle.', 403);
-    }
-
-    $onboard = apFetchOne($conn, "
-        SELECT id
-        FROM supervisor_onboarding
-        WHERE cycle_id = " . (int) $appraisal['cycle_id'] . "
-          AND supervisor_id = {$loggedInUserId}
-        LIMIT 1
-    ");
-
-    if (!$onboard) {
-        throw new Exception('Complete supervisor onboarding before editing this appraisal.', 403);
-    }
-
-    if ($isConductingAppraiser && (int) $appraisal['update_count'] >= 2 + (int) ($appraisal['extra_update_allowance'] ?? 0)) {
-        throw new Exception('You have reached the maximum number of updates for this appraisal. Please contact an administrator for further changes.', 403);
-    }
+    apAssertSupervisorUpdateEligible(apCanSupervisorUpdateAppraisal($conn, $userData, null, $appraisal));
 
     $staff = apFetchOne($conn, "SELECT * FROM users WHERE id = " . (int)$appraisal['staff_user_id'] . " LIMIT 1");
     $supervisor = apFetchOne($conn, "SELECT first_name, last_name, fullname, email FROM users WHERE id = " . (int)$appraisal['supervisor_id'] . " LIMIT 1");
@@ -129,9 +84,19 @@ try {
     $conn->begin_transaction();
     try {
         // Lock the appraisal row to prevent concurrent saves bypassing the allowance.
-        $locked = apFetchOne($conn, "SELECT update_count, extra_update_allowance, breach_cap_active, serious_breach_review_status, serious_breach_declared, serious_breach_reason, serious_breach_reference FROM appraisals WHERE id = {$appraisalId} FOR UPDATE");
-        if (!$locked || (int)$locked['update_count'] >= 2 + (int)$locked['extra_update_allowance']) {
-            throw new Exception('No update attempts remain. Ask an administrator to restore your update allowance.', 403);
+        $locked = apFetchOne($conn, "SELECT * FROM appraisals WHERE id = {$appraisalId} FOR UPDATE");
+        if (!$locked) throw new Exception('Appraisal not found.', 404);
+        apAssertSupervisorUpdateEligible(apCanSupervisorUpdateAppraisal($conn, $userData, null, $locked), true);
+        // Appraisal -> plan lock order matches unlock/save. A draft plan cannot
+        // be rated, and concurrent objective writes cannot change the plan mid-save.
+        apocLockPlansForAppraisal($conn, $appraisalId, (int)$locked['cycle_id'], (int)$locked['staff_user_id']);
+        $needsObjectiveRerating = !empty($locked['objectives_changed_at']);
+        if ($needsObjectiveRerating) {
+            $submittedSignature = (string)($data['objective_plan_signature'] ?? '');
+            $currentSignature = apocPlanSignature($conn, $appraisalId, (int)$locked['company_id'], (int)$locked['cycle_id'], (int)$locked['staff_user_id']);
+            if ($submittedSignature === '' || !hash_equals($currentSignature, $submittedSignature)) {
+                throw new ApiException('objective.planStale', [], 409, 'The objective plan changed while this form was open. Reload the appraisal before updating.');
+            }
         }
         // Validate against the locked row BEFORE touching saved responses.
         // A rejected change must not consume an update attempt or erase evidence.
@@ -148,6 +113,7 @@ try {
             'enforce_objective_plan' => true,
             'is_edit' => true,
             'preserve_response_snapshots' => true,
+            're_rate_objectives' => $needsObjectiveRerating,
         ]);
 
         $breachState = apBreachStateForSubmission($breachDeclaration, $locked);
@@ -190,10 +156,15 @@ try {
             acknowledgement = 0,
             acknowledged_at = NULL,
             update_count = {$newUpdateCount},
+            objectives_changed_at = NULL,
             updated_by = {$loggedInUserId}
             WHERE id = {$appraisalId}
         ");
 
+        // Appraisal KPI rows have now been replaced; attach full before/after
+        // evidence and every pending unlock reason to this single revision.
+        $afterObjectiveRows = apocResponseSnapshot($conn, $appraisalId);
+        apocConsumeUnlockEvents($conn, $appraisalId, $newUpdateCount + 1, $afterObjectiveRows, $needsObjectiveRerating);
         apSaveRevisionSnapshot($conn, $appraisalId, (int)$appraisal['company_id'], $newUpdateCount + 1, 'updated', $loggedInUserId, $scoreData, [
             'status_upgrade' => $requiredRecommendations['status_upgrade'],
             'salary_upgrade' => $requiredRecommendations['salary_upgrade'],

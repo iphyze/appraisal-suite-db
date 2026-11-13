@@ -7,6 +7,7 @@ require_once 'includes/authMiddleware.php';
 require_once 'includes/AdminAppraisalVisibility.php';
 require_once 'includes/CompanyCandidateRead.php';
 require_once 'includes/CompanyReadQueries.php';
+require_once 'includes/AppraisalUpdateEligibility.php';
 require_once 'includes/ContentTranslationAppraisal.php';
 
 header('Content-Type: application/json');
@@ -171,6 +172,7 @@ try {
             s.first_name, s.last_name, s.fullname, s.email, s.staff_id, s.unique_ref,
             s.department, s.job_title, s.staff_type, s.location, s.date_of_joining,
             sa.supervisor_id,
+            ap.supervisor_id AS appraisal_supervisor_id,
             ap.id AS appraisal_id,
             ap.status AS appraisal_status,
             ap.kpi_rating,
@@ -179,6 +181,7 @@ try {
             ap.feedback,
             ap.edited_count,
             ap.update_count,
+            ap.extra_update_allowance, ap.objectives_changed_at, ap.company_id, ap.cycle_id,
             ap.created_at AS appraised_at,
             ap.updated_at AS appraisal_updated_at,
             CASE
@@ -242,6 +245,26 @@ try {
         ORDER BY s.first_name ASC, s.last_name ASC, s.id ASC
         LIMIT {$limit} OFFSET {$offset}
     ", $candidateVisibility['types'], $candidateVisibility['params']);
+
+    foreach ($rows as &$candidateRow) {
+        $permission = !empty($candidateRow['appraisal_id'])
+            ? apCanSupervisorUpdateAppraisal($conn, $userData, null, [
+                'id' => $candidateRow['appraisal_id'],
+                'company_id' => $candidateRow['company_id'],
+                'cycle_id' => $candidateRow['cycle_id'],
+                'staff_user_id' => $candidateRow['staff_user_id'],
+                'supervisor_id' => $candidateRow['appraisal_supervisor_id'],
+                'staff_type' => $candidateRow['staff_type'],
+                'update_count' => $candidateRow['update_count'],
+                'extra_update_allowance' => $candidateRow['extra_update_allowance'],
+            ]) : null;
+        $candidateRow['can_adjust_objectives'] = $permission && $permission['allowed'] ? 1 : 0;
+        $candidateRow['can_update_appraisal'] = $permission && $permission['allowed'] ? 1 : 0;
+        $candidateRow['updates_left'] = $permission['updates_left'] ?? null;
+        $candidateRow['reason_key'] = $permission['reason_key'] ?? null;
+        $candidateRow['objectives_changed_since_submission'] = !empty($candidateRow['objectives_changed_at']) ? 1 : 0;
+    }
+    unset($candidateRow);
 
     $stats = companyReadFetchOne($conn, "
         SELECT

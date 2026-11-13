@@ -42,10 +42,17 @@ try {
         $profile = $profileStmt->get_result()->fetch_assoc();
         $profileStmt->close();
         if (!$profile) throw new Exception('Selected appraisal level/profile is not valid for this cycle.', 400);
-    } elseif ($requiresExplicitProfile && $lock) {
+    } elseif ($requiresExplicitProfile && $lock && !opHasAppraisal($conn, $cycleId, $staffUserId)) {
         throw new Exception('Select the employee appraisal level/profile before locking objectives.', 400);
     }
-    if (opHasAppraisal($conn, (int)$ctx['section']['cycle_id'], $staffUserId)) throw new Exception('Objectives cannot be changed after the appraisal has been submitted.', 409);
+    $submittedAppraisal=opFindSubmittedAppraisal($conn,$cycleId,$staffUserId);
+    if ($submittedAppraisal) {
+        apAssertSupervisorUpdateEligible(apCanSupervisorUpdateAppraisal($conn,$userData,null,$submittedAppraisal));
+        $assignedProfile=opAssignedScoringProfile($conn,$cycleId,$staffUserId);
+        if ($profileId > 0 && $profileId !== (int)($assignedProfile['id'] ?? 0)) {
+            throw new Exception('The appraisal level cannot be changed after submission.',409);
+        }
+    }
 
     $existingPlan = opGetPlan($conn, $sectionId, $staffUserId);
     if ($existingPlan && $existingPlan['status'] === 'locked') throw new Exception('This objective plan is locked. Unlock it before making changes.', 409);
@@ -125,7 +132,19 @@ try {
 
     $conn->begin_transaction();
     try {
-        if ($profileId > 0) {
+        // Consistent write lock order: appraisal row before plan row.
+        $lockedAppraisal=opFindSubmittedAppraisal($conn,$cycleId,$staffUserId,true);
+        if ($lockedAppraisal) {
+            apAssertSupervisorUpdateEligible(apCanSupervisorUpdateAppraisal($conn,$userData,null,$lockedAppraisal),true);
+        }
+        $lockedPlan=opGetPlanForUpdate($conn,$sectionId,$staffUserId);
+        if ($lockedAppraisal && (!$lockedPlan || $lockedPlan['status'] !== 'draft')) {
+            throw new Exception('Unlock the submitted objective plan before making changes.',409);
+        }
+        if (!$lockedAppraisal && $lockedPlan && $lockedPlan['status'] === 'locked') {
+            throw new Exception('This objective plan is locked. Unlock it before making changes.',409);
+        }
+        if ($profileId > 0 && !$lockedAppraisal) {
             $profileAssign = $conn->prepare('INSERT INTO appraisal_staff_scoring_profiles (cycle_id, staff_user_id, profile_id, assigned_by) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE profile_id=VALUES(profile_id), assigned_by=VALUES(assigned_by), updated_at=CURRENT_TIMESTAMP');
             if (!$profileAssign) throw new Exception('Database error: ' . $conn->error, 500);
             $profileAssign->bind_param('iiii', $cycleId, $staffUserId, $profileId, $loggedInUserId);
@@ -168,6 +187,18 @@ try {
             $planId = (int)($savedPlan['id'] ?? 0);
         }
 
+        if ($lockedAppraisal && $lock) {
+            $submittedSnapshot=opSubmittedObjectiveSnapshot($conn,(int)$lockedAppraisal['id'],$sectionId);
+            $lockedItems=opSelectedObjectives($conn,$sectionId,$staffUserId);
+            $changed=opObjectiveItemsDiffer($submittedSnapshot,$lockedItems);
+            $flag=$conn->prepare('UPDATE appraisals SET objectives_changed_at=' . ($changed ? 'NOW()' : 'NULL') . ' WHERE id=?');
+            if (!$flag) throw new Exception('Unable to record the objective-change state.',500);
+            $appId=(int)$lockedAppraisal['id'];
+            $flag->bind_param('i',$appId);
+            if (!$flag->execute()) throw new Exception('Unable to record the objective-change state.',500);
+            $flag->close();
+            opMarkObjectiveRelocked($conn,$appId,$planId,$lockedItems);
+        }
         $staffName = trim((string)($ctx['staff']['fullname'] ?: (($ctx['staff']['first_name'] ?? '') . ' ' . ($ctx['staff']['last_name'] ?? ''))));
         $auditDescription = "{$loggedInEmail} " . ($lock ? 'locked' : 'saved') . " {$count} objective(s) for {$staffName} in {$ctx['section']['cycle_year']}.";
         if (!empty($ctx['write_context']) && companyUserWriteIsGranted($ctx['write_context'])) {

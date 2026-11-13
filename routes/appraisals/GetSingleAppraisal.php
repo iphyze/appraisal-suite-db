@@ -9,6 +9,7 @@ require_once 'includes/AdminAppraisalVisibility.php';
 require_once 'includes/CompanyAccess.php';
 require_once 'includes/ContentTranslationAppraisal.php';
 require_once 'includes/AppraisalViewAuthorization.php';
+require_once 'includes/AppraisalUpdateEligibility.php';
 
 header('Content-Type: application/json');
 
@@ -63,6 +64,12 @@ try {
     if (!$appraisal) throw new Exception('Appraisal not found.', 404);
 
     appraisalAssertViewAuthorized($conn, $userData, $appraisal);
+    $eligibility=apCanSupervisorUpdateAppraisal($conn,$userData,null,$appraisal);
+    $appraisal['can_update_appraisal']=$eligibility['allowed'] ? 1 : 0;
+    $appraisal['can_adjust_objectives']=$eligibility['allowed'] ? 1 : 0;
+    $appraisal['updates_left']=$eligibility['updates_left'];
+    $appraisal['reason_key']=$eligibility['reason_key'];
+    $appraisal['objectives_changed_since_submission']=!empty($appraisal['objectives_changed_at']) ? 1 : 0;
 
     $scores = apFetchAll($conn, "
         SELECT sc.section_id, sc.section_code, sc.section_label, sc.section_weight,

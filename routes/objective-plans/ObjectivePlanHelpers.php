@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../includes/AdminAppraisalVisibility.php';
 require_once __DIR__ . '/../../includes/CompanyAccess.php';
 require_once __DIR__ . '/../../includes/AdminStaffScope.php';
 require_once __DIR__ . '/../../includes/CompanySupervisorWrite.php';
+require_once __DIR__ . '/../../includes/AppraisalUpdateEligibility.php';
 
 function opRoleKey($value): string {
     return strtolower(str_replace(' ', '_', trim((string)$value)));
@@ -122,6 +123,7 @@ function opResolveContext(mysqli $conn, array $userData, int $staffUserId, int $
 
     return [
         'section' => $section,
+        'user_data' => $userData,
         'staff' => $staff,
         'supervisor_id' => $supervisorId,
         'config' => objectiveSetupFetch($conn, $sectionId),
@@ -149,6 +151,99 @@ function opHasAppraisal(mysqli $conn, int $cycleId, int $staffUserId): bool {
     $found = $stmt->get_result()->num_rows > 0;
     $stmt->close();
     return $found;
+}
+
+/** Appraisal lock order for every post-submission objective write: appraisal, then plan. */
+function opFindSubmittedAppraisal(mysqli $conn, int $cycleId, int $staffUserId, bool $lock = false): ?array {
+    $sql = 'SELECT * FROM appraisals WHERE cycle_id=? AND staff_user_id=? ORDER BY id DESC LIMIT 1';
+    if ($lock) $sql .= ' FOR UPDATE';
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) throw new Exception('Unable to read submitted appraisal.', 500);
+    $stmt->bind_param('ii', $cycleId, $staffUserId);
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $result ?: null;
+}
+
+function opGetPlanForUpdate(mysqli $conn, int $sectionId, int $staffUserId): ?array {
+    $stmt = $conn->prepare('SELECT * FROM staff_objective_plans WHERE section_id=? AND staff_user_id=? LIMIT 1 FOR UPDATE');
+    if (!$stmt) throw new Exception('Unable to lock objective plan.', 500);
+    $stmt->bind_param('ii', $sectionId, $staffUserId);
+    $stmt->execute();
+    $plan = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $plan ?: null;
+}
+
+function opObjectiveUnlockReason($value): string {
+    if (!is_string($value) || !preg_match('//u', $value)) {
+        throw new Exception('Enter a valid UTF-8 reason for unlocking submitted objectives.', 400);
+    }
+    $reason = trim($value);
+    $length = function_exists('mb_strlen') ? mb_strlen($reason, 'UTF-8') : preg_match_all('/./us', $reason);
+    if ($length < 5 || $length > 500) {
+        throw new Exception('Explain the change in 5 to 500 characters.', 400);
+    }
+    return $reason;
+}
+
+/** Canonical comparator ignores rating/actual result and objective ordering.
+ * Never infer a plan change from timestamps alone or from a changing library description.
+ */
+function opCanonicalObjectiveItems(array $items): array {
+    $out = [];
+    foreach ($items as $row) {
+        $id = (int)($row['kpi_question_id'] ?? $row['id'] ?? $row['question_id'] ?? 0);
+        $target = $row['objective_target'] ?? $row['target'] ?? null;
+        $evidence = $row['evidence_source'] ?? null;
+        $weight = $row['question_weight'] ?? $row['weight_percent'] ?? null;
+        $out[$id] = [
+            'question_id' => $id,
+            'target' => $target === null ? null : trim((string)$target),
+            'evidence_source' => $evidence === null ? null : trim((string)$evidence),
+            'weight_percent' => $weight === null ? null : number_format((float)$weight, 2, '.', ''),
+        ];
+    }
+    ksort($out, SORT_NUMERIC);
+    return array_values($out);
+}
+
+function opSubmittedObjectiveSnapshot(mysqli $conn, int $appraisalId, int $sectionId): array {
+    $stmt = $conn->prepare('SELECT kpi_question_id, question_text, objective_target, evidence_source, question_weight, actual_result, rating, rating_comment FROM appraisal_kpi_responses WHERE appraisal_id=? AND section_id=? ORDER BY kpi_question_id ASC');
+    if (!$stmt) throw new Exception('Unable to load the submitted KPI snapshot.', 500);
+    $stmt->bind_param('ii', $appraisalId, $sectionId);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $rows;
+}
+
+function opObjectiveItemsDiffer(array $submitted, array $locked): bool {
+    return opCanonicalObjectiveItems($submitted) !== opCanonicalObjectiveItems($locked);
+}
+
+function opStoreObjectiveUnlockEvent(mysqli $conn, array $appraisal, array $plan, int $actorId, string $reason, array $snapshot): void {
+    $appraisalId = (int)$appraisal['id'];
+    $planId = (int)$plan['id'];
+    $json = json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    $stmt = $conn->prepare('INSERT INTO appraisal_objective_change_events (appraisal_id, objective_plan_id, actor_user_id, unlock_reason, submitted_snapshot_json) VALUES (?,?,?,?,?)');
+    if (!$stmt) throw new Exception('Unable to record the objective unlock reason.', 500);
+    $stmt->bind_param('iiiss', $appraisalId, $planId, $actorId, $reason, $json);
+    if (!$stmt->execute()) throw new Exception('Unable to audit the objective unlock reason.', 500);
+    $stmt->close();
+}
+
+/** Link the latest pending unlock to its final locked objective set.
+ * Earlier unlock reasons remain in the append-only event table for the next revision.
+ */
+function opMarkObjectiveRelocked(mysqli $conn, int $appraisalId, int $planId, array $lockedItems): void {
+    $json = json_encode($lockedItems, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    $stmt = $conn->prepare('UPDATE appraisal_objective_change_events SET relocked_at=NOW(), locked_snapshot_json=? WHERE appraisal_id=? AND objective_plan_id=? AND relocked_at IS NULL AND consumed_revision_no IS NULL ORDER BY id DESC LIMIT 1');
+    if (!$stmt) throw new Exception('Unable to record relocked objective details.', 500);
+    $stmt->bind_param('sii', $json, $appraisalId, $planId);
+    if (!$stmt->execute()) throw new Exception('Unable to store relocked objectives.', 500);
+    $stmt->close();
 }
 
 function opDepartmentDefaultObjectives(mysqli $conn, array $ctx): array {
@@ -241,6 +336,8 @@ function opPayload(mysqli $conn, array $ctx): array {
     $cycleId = (int)$ctx['section']['cycle_id'];
     $scoringProfiles = opScoringProfiles($conn, $companyId, $cycleId);
     $assignedProfile = opAssignedScoringProfile($conn, $cycleId, $staffId);
+    $submittedAppraisal = opFindSubmittedAppraisal($conn, $cycleId, $staffId);
+    $editEligibility = $submittedAppraisal ? apCanSupervisorUpdateAppraisal($conn, $ctx['user_data'] ?? [], null, $submittedAppraisal) : null;
 
     return [
         'staff' => [
@@ -269,7 +366,12 @@ function opPayload(mysqli $conn, array $ctx): array {
             'locked_by' => $plan['locked_by'] ? (int)$plan['locked_by'] : null,
             'updated_at' => $plan['updated_at'],
         ] : null,
-        'has_appraisal' => opHasAppraisal($conn, (int)$ctx['section']['cycle_id'], $staffId),
+        'has_appraisal' => $submittedAppraisal !== null,
+        'appraisal_id' => $submittedAppraisal ? (int)$submittedAppraisal['id'] : null,
+        'can_adjust_objectives' => $editEligibility && $editEligibility['allowed'] ? 1 : 0,
+        'updates_left' => $editEligibility['updates_left'] ?? null,
+        'reason_key' => $editEligibility['reason_key'] ?? null,
+        'objectives_changed_since_submission' => $submittedAppraisal && !empty($submittedAppraisal['objectives_changed_at']) ? 1 : 0,
         'permissions' => [
             'can_prepare' => !empty($ctx['actor']['can_prepare']) ? 1 : 0,
             'can_lock' => !empty($ctx['actor']['can_lock']) ? 1 : 0,

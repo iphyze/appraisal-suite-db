@@ -5,6 +5,7 @@ require 'vendor/autoload.php';
 require_once 'includes/connection.php';
 require_once 'includes/authMiddleware.php';
 require_once 'includes/AdminStaffScope.php';
+require_once 'includes/AppraisalUpdateEligibility.php';
 require_once __DIR__ . '/AppraisalHelpers.php';
 require_once 'includes/AdminAppraisalVisibility.php';
 require_once 'includes/CompanyAccess.php';
@@ -110,6 +111,7 @@ try {
             ap.staff_fullname, ap.staff_department, ap.staff_location, ap.staff_job_title,
             ap.staff_type, ap.staff_email, ap.kpi_rating, ap.appraisal_summary,
             ap.evaluation_statement, ap.status, ap.feedback, ap.edited_count, ap.update_count,
+            ap.extra_update_allowance, ap.objectives_changed_at,
             ap.created_at, ap.updated_at,
             CASE
                 WHEN ap.rating_config_snapshot IS NOT NULL AND JSON_VALID(ap.rating_config_snapshot)
@@ -124,6 +126,16 @@ try {
         ORDER BY {$sortColumn} {$sortOrder}, ap.id DESC
         LIMIT {$limit} OFFSET {$offset}
     ", $grantBindTypes, $grantBindParams);
+
+    foreach ($rows as &$appraisalRow) {
+        $permission = apCanSupervisorUpdateAppraisal($conn, $userData, null, $appraisalRow);
+        $appraisalRow['can_update_appraisal'] = $permission['allowed'] ? 1 : 0;
+        $appraisalRow['can_adjust_objectives'] = $permission['allowed'] ? 1 : 0;
+        $appraisalRow['updates_left'] = $permission['updates_left'];
+        $appraisalRow['reason_key'] = $permission['reason_key'];
+        $appraisalRow['objectives_changed_since_submission'] = !empty($appraisalRow['objectives_changed_at']) ? 1 : 0;
+    }
+    unset($appraisalRow);
 
     $stats = companyReadFetchOne($conn, "
         SELECT

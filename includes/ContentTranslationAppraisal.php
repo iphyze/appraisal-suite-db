@@ -33,6 +33,15 @@ function contentTranslationAppraisalDetailPaths(): array
         // prior section labels and evaluation statements.
         'revision_history.*.evaluation_statement' => 'evaluation_statement',
         'revision_history.*.section_scores.*.section_label' => 'section',
+        // Rated objective before/after evidence (reason/targets/results are
+        // employee-authored and intentionally never translated).
+        'revision_history.*.objective_changes.*.before.*.question_text' => 'question',
+        'revision_history.*.objective_changes.*.locked_plan.*.question_text' => 'question',
+        'revision_history.*.objective_changes.*.after.*.question_text' => 'question',
+        'revision_history.*.objective_changes.*.difference.added.*.question_text' => 'question',
+        'revision_history.*.objective_changes.*.difference.removed.*.question_text' => 'question',
+        'revision_history.*.objective_changes.*.difference.changed.*.before.question_text' => 'question',
+        'revision_history.*.objective_changes.*.difference.changed.*.after.question_text' => 'question',
         // The decoded saved rating_config_snapshot is for display only.
         // Do not modify the raw snapshot JSON or any calculation inputs.
         'rating_config.rating_bands.*.label' => 'rating_band',
@@ -75,6 +84,12 @@ function contentTranslationAppraisalFormPaths(): array
         'sections.*.label' => 'section',
         'sections.*.description' => 'section',
         'sections.*.questions.*.question_text' => 'question',
+        'objective_change_summary.added.*.question_text' => 'question',
+        'objective_change_summary.removed.*.question_text' => 'question',
+        'objective_change_summary.sections.*.added.*.question_text' => 'question',
+        'objective_change_summary.sections.*.removed.*.question_text' => 'question',
+        'objective_change_summary.sections.*.changed.*.before.question_text' => 'question',
+        'objective_change_summary.sections.*.changed.*.after.question_text' => 'question',
         'sections.*.questions.*.question_label' => 'question',
         'sections.*.questions.*.anchor_low_text' => 'anchor',
         'sections.*.questions.*.anchor_mid_text' => 'anchor',
