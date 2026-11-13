@@ -1,0 +1,155 @@
+# SHA-256 manifest for the COMPLETE AppraisalSuite Batches 2-7 staging ZIP.
+# Extract the cumulative ZIP and run: sha256sum -c api/IDENTITY_BATCH7_MANIFEST.sha256
+# It verifies every other file in this cumulative distribution.
+# Last changed in Batch 2
+c0440fa2d8ee88285cdbc82a809d73ca11656b2c8a4e7816a7c8a1f450846d8f  api/IDENTITY_BATCH2_RELEASE.md
+# Last changed in Batch 3
+7a0be759c050ff4ac6e0fa87d7df0169a24a9d963b35c4d78442123016ce00df  api/IDENTITY_BATCH3_RELEASE.md
+# Last changed in Batch 4
+2ef1510ff2dacca0e6b4eda15ab05b0ecc5eed17666bacf48b0b0b6c1606021e  api/IDENTITY_BATCH4_RELEASE.md
+# Last changed in Batch 5
+65b8fa932863f1077c60f5c4af7552884f53f17fe6e52fb4370c645fc1c4483d  api/IDENTITY_BATCH5_RELEASE.md
+# Last changed in Batch 6
+6c8004f893a91259f34c8e13758ecf2982abeee52395e21923dcde571484c654  api/IDENTITY_BATCH6_RELEASE.md
+# Last changed in Batch 7
+bfd6b108acfec4a6ef265d09a9b5fc61a65ed63d93e8ff68e3783705484e5873  api/IDENTITY_BATCH7_RELEASE.md
+# Last changed in Batch 2
+5ca17db675d031c2bf3ec27737ccaf8320bb24336eceb6e017ce25168ea6dbdc  api/database/migration/30 - user_identities_and_memberships.sql
+# Last changed in Batch 3
+d4058f9eda571c6f85df19f633f8be88fd0040271ccde235d7b96d9d4de94448  api/includes/AuthSecurity.php
+# Last changed in Batch 6
+88d0c3f29d3612fc727ce2fb027aa9e4d2ec11a6d18886ffff50709646159282  api/includes/CompanyNotificationDispatch.php
+# Last changed in Batch 6
+e386fc5c083c864d1627a407f2ef138c32fb06d9a37fd8c868200aaa3e8d0404  api/includes/EmailLocale.php
+# Last changed in Batch 4
+660990bbff66215de14cef344ffe03f5fc6b6b4dcaf0f8c626673ba1c50b37de  api/includes/IdentityPasswords.php
+# Last changed in Batch 3
+2e48f49757a178af60bb1a79db1277bfb27fff2313b1bc213f8b3be332eb3af2  api/includes/IdentitySession.php
+# Last changed in Batch 6
+2a303cbf9e40d35920fb284cc5349c5cf7ffa8bbb0475d929557e116af41e963  api/includes/IdentityUserManagement.php
+# Last changed in Batch 5
+b7f2f9690de76cb516ea0280e352d287d36b715e4ac083c574954bb750a5a30d  api/includes/IdentityWorkspaces.php
+# Last changed in Batch 5
+11512ac0bc0c8202322d8c83f41f05deb80a3ee563976ef7090739e6f67f882d  api/includes/UserIdentity.php
+# Last changed in Batch 3
+df724c0304212b089cdb7ff90a9d9ae2ec79fa28a7e85963615c3a643c92b4c0  api/includes/authMiddleware.php
+# Last changed in Batch 6
+5ba6eb93384461a5eb3e56d4f33bf30e469575cd7628fc9777c769e6e1d2b2d7  api/index.php
+# Last changed in Batch 4
+810e08a20660534e359a1f789f91de09c453ab5b2b9d4f12ebaae19f9f8e7001  api/routes/auth/ChangePassword.php
+# Last changed in Batch 3
+a70e3df157c990a410894fd649481e685bd5a9adb63fe422e90cfa28cd734857  api/routes/auth/LogoutAll.php
+# Last changed in Batch 3
+005a944a9b6f9b85c5a37ae36294565a9627f78b0cf80be08fc9f67d3918a60f  api/routes/auth/Session.php
+# Last changed in Batch 5
+01e9b5a97abc92ff6429a47f3f7330346fa6fe9461c6290ca3fbfe89c41db774  api/routes/auth/SwitchWorkspace.php
+# Last changed in Batch 5
+ce395e994fda7dd52c437660d931e00fc8453825de02749a91a57470b9405f0a  api/routes/auth/Workspaces.php
+# Last changed in Batch 5
+766098f1bfccbab2b66899108d600663fa1303618be94c7a886797bbb655b4af  api/routes/auth/login.php
+# Last changed in Batch 6
+53d73bd5b3b7004b9176ecea43b78896154b8d605f4342a541d521a3e2a7ab55  api/routes/auth/register.php
+# Last changed in Batch 6
+b2852994a086e972fa4e0d3d36d9a66d10ab473bc640d7ddc5e8c1d815c58a72  api/routes/users/CreateUsers.php
+# Last changed in Batch 6
+2d7004404c7d760a98503d08ea3b2e433cb8431fb6aee36688538c5ee1057eac  api/routes/users/GetMyProfile.php
+# Last changed in Batch 6
+9c787ceef0dcef2a2ccba2ff9ba34f343fd5d1bd777b294867e9bb325d11bac2  api/routes/users/GetUsers.php
+# Last changed in Batch 6
+c4d0912a9ec60eb920409181fed9faf9363ddb8ceafd0013c96a178805a2cd6f  api/routes/users/IdentityLookup.php
+# Last changed in Batch 6
+fe1917e366fcccc1c366c153fe5ce7d52546e4f43c3498da2b66d2492d7a9119  api/routes/users/IdentityStatus.php
+# Last changed in Batch 4
+ee02a22e7b481b013dec119ed268c07a1bc2a811f7fce108a938c0a053d8c134  api/routes/users/PasswordWorkspaces.php
+# Last changed in Batch 4
+aca49cc97da7e46e0238c0007709a189ca4c731ce2cf1e77ce00060d2e9a044e  api/routes/users/ResetPassword.php
+# Last changed in Batch 3
+489fd8ef8259d4dd1e85953d2b4d1b6d8a87c9119e5e1c99ba348ab133105690  api/routes/users/UpdatePreferredLocale.php
+# Last changed in Batch 4
+ab2aea9367e9de66d58b2ab87756f52116b87af1d2706a92a20a4f3d809890db  api/routes/users/UpdateProfile.php
+# Last changed in Batch 6
+12edbaf07d0677673a19aef9c317835d1492749f289ae800b777c17117ca5e74  api/routes/users/UpdateUser.php
+# Last changed in Batch 7
+de894adc9bd4db7f489c5214770d6ca72e5d47af7a8a5dcfd2b87307f246a592  api/routes/users/deleteUsers.php
+# Last changed in Batch 6
+69925418851836c47ab87b773feb34b8f7847a1a7c4bb7f216d6ea8217143aa6  api/routes/users/getSingleUser.php
+# Last changed in Batch 2
+f9dd97f544f77f2c9ef791ac232f950e5f145add5bbf38ec88c57a0e9f0b948e  api/tests/user_identity_batch2_db_test.php
+# Last changed in Batch 2
+5d2ca1d98c66ee685ef8c67cbae4c4512e7617982197b1ba1d47c7b6d100dc2b  api/tests/user_identity_batch2_static_test.php
+# Last changed in Batch 3
+92186de95878c6e861287dd1303709a3e1fcbf201a41cd43883840c4fa2f8025  api/tests/user_identity_batch3_db_test.php
+# Last changed in Batch 3
+77ac174ff5045a3b28ad1b499db2897c65307eac8b8f61470a2898a9bf1f8e0d  api/tests/user_identity_batch3_session_test.php
+# Last changed in Batch 3
+e3111d130235b43aa819e55245d3b49991ebb83b9742fea8779b1ea81f120314  api/tests/user_identity_batch3_static_test.php
+# Last changed in Batch 4
+b7249ff1f1bc5ea53b579568ab0e2aa1eab1253cf5f6c1abe769280d13ad57dc  api/tests/user_identity_batch4_db_test.php
+# Last changed in Batch 4
+559a81a1e96af33d2276ca21a480e87975726ded8ec1781f13c1c4e4715003f1  api/tests/user_identity_batch4_password_test.php
+# Last changed in Batch 5
+ad9b1a0c6d6e044370d879b0b93633ad87d2aeec09d9bb0d739ee873b58d31cb  api/tests/user_identity_batch5_db_test.php
+# Last changed in Batch 5
+8abfdce3ed69b581f71dbe9ab6725fb56df791a729b82706357392b1374cf5a2  api/tests/user_identity_batch5_workspace_test.php
+# Last changed in Batch 6
+0d979528cc6db5656424fd574053edebc2658d72d094d3c6f7e6c457a7fc7942  api/tests/user_identity_batch6_db_test.php
+# Last changed in Batch 6
+1b9e0163ce873ba38ccc194e04be4c812038462968953bf0423a5f6579a4bfa4  api/tests/user_identity_batch6_rules_test.php
+# Last changed in Batch 6
+ea792344a6443f207936fe1da2fcfda2326243207f01253c03b081755951525f  api/tests/user_identity_batch6_static_test.php
+# Last changed in Batch 7
+a3e4c44d49eb57e1c0f32e430ebaed9f181cb9877ff047cb4b028fdcc2f70298  api/tests/user_identity_batch7_copy_verification.php
+# Last changed in Batch 7
+715ac723fcd1520130b6b18cccf03bfa62218baf8288c1c612a2722ca2235c17  api/tests/user_identity_batch7_deletion_test.php
+# Last changed in Batch 7
+e07552e60abf43b90007d965343a43e20d8209c901a144a63624e76acd9f03ca  api/tests/user_identity_batch7_release_checks.sql
+# Last changed in Batch 5
+96100c829780607328716db485f077e2af1fe27537f53b5ac7d648432f597286  src/components/MemberWorkspaceSwitcher.css
+# Last changed in Batch 5
+a90a59c9c04a1c950304beb937298cd30d5f6e92bdc40a264bb800bf5dd272aa  src/components/MemberWorkspaceSwitcher.jsx
+# Last changed in Batch 4
+a8c0775db146a3740fe6d0ed8ac24b18606c60b6426cb94fe6a083757f5b79d6  src/locales/en/auth.json
+# Last changed in Batch 5
+edc4e5f7552bbc680c602fdf4c7b044037d95d5e6d2e920c587b89f61917fe21  src/locales/en/nav.json
+# Last changed in Batch 6
+f2cc151fe40951805f71460eea0011ecf3134aee23dfb4ad28764293c6d5612f  src/locales/en/users.json
+# Last changed in Batch 4
+83a85fabb65d3909e4d7fc7888c5a397df9491c9c0f5943bb6b78a3540784411  src/locales/fr/auth.json
+# Last changed in Batch 5
+14d4faf9c44b812a0a59a29acf875e6b277abe166c3c562ff770f1926016f0f8  src/locales/fr/nav.json
+# Last changed in Batch 6
+d29cfa7f25d10d6ba103b7bc8465eb068b6678cbe4672a702510589f221994ad  src/locales/fr/users.json
+# Last changed in Batch 5
+c7e3d48685eeb504b52f91349667a42d702b16759e706702c93b3520a220794e  src/pages/Header.jsx
+# Last changed in Batch 4
+9c79d91fc38285bc3f23d972e1cf1f71fbc6459ba260e0972f9d563a9a86966a  src/pages/auth/ChangePassword.css
+# Last changed in Batch 4
+e15c38797e962d10c71540d4178d2a1ff77a37564d0088d9ac1cb48c5c673470  src/pages/auth/ChangePassword.jsx
+# Last changed in Batch 3
+5ebd4727ec2d8528a5c105d29552901b00d26d271c58bfb1d2f9eaa2afe9b86c  src/pages/auth/Login.jsx
+# Last changed in Batch 6
+bc7ecf9db24a125f3852f54f01277b71aa6d020a2f44428f0acbda290755e884  src/pages/users/UserForm.jsx
+# Last changed in Batch 6
+9160ff620d1563a446720e80e5318e57ea6f04651e59b29a88491873ba3d41b0  src/pages/users/Users.css
+# Last changed in Batch 6
+846b53427e4dac8eb2fdaa35bef679f5b72435b1224195cad11c981ba0c0d877  src/pages/users/UsersOverview.jsx
+# Last changed in Batch 6
+e7575ca791f68b525dc74d3423a2fe908836bd245a2e33a0e74ee38bff4fe2ac  src/pages/users/ViewUser.jsx
+# Last changed in Batch 5
+51dc3371fc36c46bf956111b0040670f3bc5b9ec6936642f52f5086ec3ff825f  src/stores/useAuthStore.js
+# Last changed in Batch 5
+87c02d708975dd5cace8041db454f7b7c1d42506c1eff35d89a370f01740aad1  src/stores/usePortalContextStore.js
+# Last changed in Batch 6
+8914347571f725074daa0e804e5c2500aa1ba233738fda4775e3e58da8d5e935  src/stores/useUsersStore.js
+# Last changed in Batch 3
+b3b7f4a79018e67a22bca6aa1b4782d8ae1d41c4b9699e994e24de4bc08f40fb  src/tests/identity-login.test.mjs
+# Last changed in Batch 4
+19a9f6216dbbd049f89279aea915586ec413fa8dd8cf1fb5afaacb479e0378bf  src/tests/identity-passwords.test.mjs
+# Last changed in Batch 6
+3f9b396f45e566cf95a8209da7a272f281751d462e92ee339040411481a67a33  src/tests/identity-user-management.test.mjs
+# Last changed in Batch 5
+c87745c57f9766a2f1b013aa1dfc36ba50ecb504b84060bd6e8af00e90b75278  src/tests/memberWorkspaces.test.mjs
+# Last changed in Batch 3
+ffe9e29202e7c866c3536030187a2e9dc95df7cec4bcb86e3e746df56f942dad  src/utils/loginWorkspaces.js
+# Last changed in Batch 5
+9253b8aa998a55b5df396a8890f75630ef5a4b8aab5b7c40ccbbfedc91decefd  src/utils/memberWorkspaces.js

@@ -1,0 +1,7 @@
+.qodo
+.env
+.env.*
+!.env.example
+databese/*
+/database
+tests

@@ -1,0 +1,140 @@
+# AppraisalSuite Batch A — staff_scope inventory (before any changes)
+
+Source: uploaded 10 November 2026 backend/frontend archives. All matches are recorded, including references that are only metadata, display, or unchanged grant policy.
+
+Backend application sources: 58 files, 189 occurrences.
+
+## Backend application references (path: original lines)
+- `api/includes/AdminCompanyGrants.php`: 48, 50, 60, 62, 144, 181, 232, 299, 303, 309, 339, 341
+- `api/includes/AiAnalytics.php`: 301, 312, 324, 325
+- `api/includes/AiChatHistory.php`: 17, 21
+- `api/includes/AiManagementMetrics.php`: 34
+- `api/includes/AiReadTools.php`: 45, 64, 115, 116, 117
+- `api/includes/AppraisalViewAuthorization.php`: 34, 61, 69
+- `api/includes/CompanyAccess.php`: 56, 65, 79, 142, 172, 180, 230, 273, 281, 303, 311, 320, 341, 348
+- `api/includes/CompanyAppraisalWrite.php`: 54, 55, 64
+- `api/includes/CompanyCandidateRead.php`: 34
+- `api/includes/CompanyDepartmentAccess.php`: 9, 17
+- `api/includes/CompanyDirectoryRead.php`: 6, 15, 20
+- `api/includes/CompanyExportAccess.php`: 5, 98, 102
+- `api/includes/CompanyKpiQuestionAccess.php`: 61
+- `api/includes/CompanyMailAccess.php`: 30, 83, 156, 205, 209, 211, 227
+- `api/includes/CompanyNotificationDispatch.php`: 15, 69
+- `api/includes/CompanyNotificationRead.php`: 66, 86, 127
+- `api/includes/CompanySetupWrite.php`: 21
+- `api/includes/CompanySupervisorRead.php`: 8, 22, 27, 28, 29
+- `api/includes/CompanySupervisorWrite.php`: 62
+- `api/includes/CompanyUserWrite.php`: 35
+- `api/includes/IdentityPasswords.php`: 77, 82
+- `api/includes/IdentityUserManagement.php`: 39
+- `api/includes/UserIdentity.php`: 92
+- `api/includes/authMiddleware.php`: 89
+- `api/routes/appraisals/CreateAppraisal.php`: 60
+- `api/routes/appraisals/GetAppraisalFormData.php`: 83
+- `api/routes/appraisals/GetAppraisals.php`: 81
+- `api/routes/appraisals/ManagementReview.php`: 55, 60
+- `api/routes/appraisals/UpdateAppraisal.php`: 50
+- `api/routes/auth/ChangePassword.php`: 55
+- `api/routes/auth/login.php`: 91
+- `api/routes/dashboard/GetDashboard.php`: 222, 320, 321, 324, 325, 339, 514
+- `api/routes/exports/AppraisalExcelExport.php`: 62, 63, 72
+- `api/routes/exports/ManagementAppraisalExcelExport.php`: 59, 60, 69, 72
+- `api/routes/exports/SupervisorsExcelExport.php`: 78
+- `api/routes/exports/UsersExcelExport.php`: 86, 87, 93, 122, 189
+- `api/routes/mail/GetMailRecipients.php`: 17
+- `api/routes/mail/GetPendingAcknowledgementStaff.php`: 35, 67, 69
+- `api/routes/objective-plans/ObjectivePlanHelpers.php`: 76, 110, 112
+- `api/routes/old/appraisals/GetAppraisals.php`: 30, 31, 33, 34, 112, 114
+- `api/routes/search/GlobalSearch.php`: 152, 153
+- `api/routes/supervisors/GetAssignmentStaff.php`: 210
+- `api/routes/supervisors/GetSingleSupervisor.php`: 91
+- `api/routes/supervisors/GetSupervisors.php`: 241
+- `api/routes/supervisors/SearchSupervisors.php`: 28, 30, 31
+- `api/routes/supervisors/old/GetSupervisors.php`: 25, 26, 28, 30, 79, 81
+- `api/routes/supervisors/old/SearchSupervisors.php`: 22, 23, 25, 27, 47, 49
+- `api/routes/users/AdminCompanyAccess.php`: 6, 7
+- `api/routes/users/BulkUpdateStaff.php`: 80, 82
+- `api/routes/users/CreateUsers.php`: 56, 84, 87, 88, 99, 174, 196, 257
+- `api/routes/users/GetMyProfile.php`: 14
+- `api/routes/users/GetUsers.php`: 59, 60, 61, 64, 115, 116, 118, 164
+- `api/routes/users/SearchUsers.php`: 22, 23, 43, 75, 76, 77
+- `api/routes/users/UpdateProfile.php`: 141
+- `api/routes/users/UpdateUser.php`: 104, 227, 228, 233, 234, 236, 237, 280, 402
+- `api/routes/users/deleteUsers.php`: 81
+- `api/routes/users/getSingleUser.php`: 45, 89, 90
+- `api/routes/utils/MailRecipients.php`: 63, 67, 81, 109, 177, 216, 217, 248
+
+## Backend tests: 47 files, 189 occurrences.
+- `api/tests/ai_smart_search_progress_tests.php`: 67
+- `api/tests/company_access_migration_db_test.php`: 58, 81, 101, 111, 116, 120, 144
+- `api/tests/company_access_tests.php`: 31, 35, 37, 41, 53, 64, 77, 122, 124
+- `api/tests/company_ai_read_batch4d_db_test.php`: 70, 73, 88, 93
+- `api/tests/company_ai_read_batch4d_tests.php`: 26, 27, 28, 29, 38, 40, 42, 48, 50
+- `api/tests/company_departments_batch5e2a_db_test.php`: 55, 57, 61
+- `api/tests/company_departments_batch5e2a_tests.php`: 27, 29, 49, 129
+- `api/tests/company_export_batch4c_db_test.php`: 62, 64, 92
+- `api/tests/company_export_batch4c_tests.php`: 20, 21, 26, 45, 50, 58
+- `api/tests/company_final_batch10_tests.php`: 25, 26, 33, 36
+- `api/tests/company_grant_management_db_test.php`: 67, 96, 121, 124, 144, 151, 153
+- `api/tests/company_grant_management_tests.php`: 31, 33, 34, 36, 38, 59
+- `api/tests/company_kpi_batch5d2b_db_test.php`: 49
+- `api/tests/company_kpi_batch5d2b_tests.php`: 25, 26, 33, 44
+- `api/tests/company_kpi_batch5d2c_db_test.php`: 59
+- `api/tests/company_kpi_batch5d2c_tests.php`: 23, 24, 66, 68, 71, 73
+- `api/tests/company_mail_batch5e1_db_test.php`: 41, 62, 71, 93, 98, 105
+- `api/tests/company_mail_batch5e1_tests.php`: 60, 62, 111, 123, 134
+- `api/tests/company_notification_batch4e_db_test.php`: 94, 113, 139
+- `api/tests/company_notification_batch4e_tests.php`: 21, 39, 40
+- `api/tests/company_notification_batch8a_db_test.php`: 37, 62, 80
+- `api/tests/company_notification_batch8a_tests.php`: 13, 17, 18, 19, 23
+- `api/tests/company_notification_batch8b_db_test.php`: 53, 101
+- `api/tests/company_notification_batch8b_tests.php`: 11, 26, 33
+- `api/tests/company_read_batch4b_db_test.php`: 52, 54, 81
+- `api/tests/company_read_batch4b_tests.php`: 25, 26, 46, 49
+- `api/tests/company_read_scope_db_test.php`: 82, 86, 103
+- `api/tests/company_read_scope_tests.php`: 21, 23, 28, 33, 39, 43
+- `api/tests/company_remaining_batch5e2b_db_test.php`: 43, 60, 66, 68, 70, 97, 99
+- `api/tests/company_remaining_batch5e2b_tests.php`: 26, 28, 32, 33, 35, 36, 49, 50, 67, 79, 102, 107
+- `api/tests/company_route_batch5e2c_tests.php`: 22, 25, 37
+- `api/tests/company_setup_batch5d1_db_test.php`: 60, 63
+- `api/tests/company_setup_batch5d1_tests.php`: 26, 27, 33
+- `api/tests/company_setup_batch5d2a_db_test.php`: 49
+- `api/tests/company_setup_batch5d2a_tests.php`: 26, 27
+- `api/tests/company_wide_settings_scope_tests.php`: 23
+- `api/tests/company_write_batch5a_db_test.php`: 74, 78, 82, 148
+- `api/tests/company_write_batch5a_tests.php`: 24, 26, 76
+- `api/tests/company_write_batch5b_db_test.php`: 60, 63, 67
+- `api/tests/company_write_batch5b_tests.php`: 30, 32, 40
+- `api/tests/company_write_batch5c_db_test.php`: 58, 61
+- `api/tests/company_write_batch5c_tests.php`: 23, 24, 31
+- `api/tests/free_text_translation_batch11_tests.php`: 79
+- `api/tests/mail_scope_recipients_test.php`: 43
+- `api/tests/user_identity_batch4_password_test.php`: 20, 25, 26, 27, 28, 31, 32, 36, 37
+- `api/tests/user_identity_batch6_rules_test.php`: 12, 17, 18, 19, 26, 27, 28
+- `api/tests/users_bulk_and_appraisal_prep_security_tests.php`: 13
+
+## Frontend references: 16 files, 57 occurrences.
+- `src/components/CompanyContextBanner.jsx`: 27, 28, 29
+- `src/components/PortalContextSwitcher.jsx`: 65, 66
+- `src/locales/en/company.json`: 211
+- `src/locales/en/users.json`: 26, 92
+- `src/locales/fr/company.json`: 211
+- `src/locales/fr/users.json`: 26, 92
+- `src/pages/company-access/CompanyAccessGrants.jsx`: 266, 285, 306
+- `src/pages/mail/ManualEmail.jsx`: 81, 135, 158, 420, 423, 427
+- `src/pages/users/UserForm.jsx`: 43, 124, 306, 307, 327, 328, 362, 430, 496, 497, 498, 499, 501
+- `src/pages/users/ViewUser.jsx`: 119
+- `src/services/companyAccess.js`: 17
+- `src/tests/companyAccess.test.js`: 6, 7, 8, 26, 33, 70, 71, 72
+- `src/tests/companyContextWiring.test.js`: 68
+- `src/tests/companyGrantForm.test.js`: 14, 31, 34, 36, 38, 40
+- `src/tests/notificationNavigation.test.js`: 9, 10
+- `src/utils/companyGrantForm.js`: 3, 18, 24, 30, 40
+
+## Preservation rules
+- Company Access and grant authorization remain strict; do not use an assignment exemption for a granted company.
+- `users` management and directory/admin profile write scopes remain unchanged: a supervisor assignment is not admin-wide user-management permission.
+- Existing peer-admin privacy policy remains untouched; helper predicates are conjunctive with it.
+- Ordinary supervisors and Super Admin scope remain unchanged.
+- Scoping of lists with an explicit selected staff type/department/search remains unchanged.
+- Home-company appraisal/team subject visibility is the only scope condition eligible for a per-cycle supervisor-assignment exception; historical appraisals additionally consider `appraisals.supervisor_id`.
