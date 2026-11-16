@@ -4,6 +4,7 @@ require 'vendor/autoload.php';
 require_once 'includes/connection.php';
 require_once 'includes/authMiddleware.php';
 require_once 'includes/CompanyKpiQuestionAccess.php';
+require_once 'includes/KpiQuestionSafeDeletion.php';
 require_once 'routes/kpi-questions/KpiQuestionMetadata.php';
 
 header('Content-Type: application/json');
@@ -298,26 +299,6 @@ try {
         }
     }
 
-    if (!empty($deleteIds)) {
-        foreach ($deleteIds as $deleteId) {
-            $usedStmt = $conn->prepare("
-                SELECT COUNT(*) AS cnt
-                FROM appraisal_kpi_responses
-                WHERE kpi_question_id = ?
-            ");
-            $usedStmt->bind_param("i", $deleteId);
-            $usedStmt->execute();
-            $responseCount = (int) $usedStmt->get_result()->fetch_assoc()['cnt'];
-            $usedStmt->close();
-
-            if ($responseCount > 0) {
-                throw new Exception(
-                    "Cannot delete KPI question ID {$deleteId} — it has {$responseCount} appraisal response(s). Deactivate it instead.",
-                    409
-                );
-            }
-        }
-    }
 
     $conn->begin_transaction();
 
@@ -435,6 +416,9 @@ try {
     $insertStmt->close();
 
     $deletedQuestions = [];
+    $deletedIds = [];
+    $deactivatedIds = [];
+    $removalActions = [];
     if (!empty($deleteIds)) {
         $deletePlaceholders = implode(',', array_fill(0, count($deleteIds), '?'));
         $deleteTypes = str_repeat('i', count($deleteIds));
@@ -460,16 +444,13 @@ try {
             throw new Exception("One or more KPI questions selected for deletion could not be found.", 409);
         }
 
-        $deleteStmt = $conn->prepare("
-            DELETE FROM kpi_questions
-            WHERE company_id = ?
-              AND id IN ({$deletePlaceholders})
-        ");
-        $deleteStmt->bind_param($deleteFetchTypes, ...$deleteFetchParams);
-        if (!$deleteStmt->execute()) {
-            throw new Exception("Failed to delete KPI question: " . $deleteStmt->error, 500);
+        foreach ($deletedQuestions as $deletedQuestion) {
+            $id = (int)$deletedQuestion['id'];
+            $action = kpiQuestionRemoveSafely($conn, $id, $companyId, $loggedInUserId);
+            $removalActions[$id] = $action;
+            if ($action === 'deleted') $deletedIds[] = $id;
+            else $deactivatedIds[] = $id;
         }
-        $deleteStmt->close();
     }
 
     $logStmt = $conn->prepare("
@@ -482,17 +463,20 @@ try {
         $targetTable = "kpi_questions";
         $targetId    = $affectedIds[0] ?? 0;
         $count       = count($affectedIds);
-        $deletedCount = count($deletedQuestions);
+        $deletedCount = count($deletedIds);
+        $deactivatedCount = count($deactivatedIds);
         $description = "{$loggedInUserEmail} saved {$count} KPI question row(s) for {$department}" .
-            ($deletedCount > 0 ? " and deleted {$deletedCount} row(s)." : ".");
+            ($deletedCount > 0 ? " and deleted {$deletedCount} row(s)" : "") .
+            ($deactivatedCount > 0 ? " and deactivated {$deactivatedCount} referenced row(s)." : ".");
         $logStmt->bind_param("iissis", $companyId, $loggedInUserId, $action, $targetTable, $targetId, $description);
         $logStmt->execute();
 
         foreach ($deletedQuestions as $deletedQuestion) {
-            $deleteAction = "delete_kpi_question";
+            $deleteAction = $removalActions[(int)$deletedQuestion['id']] === 'deleted'
+                ? "delete_kpi_question" : "deactivate_referenced_kpi_question";
             $deleteTargetTable = "kpi_questions";
             $deleteTargetId = (int) $deletedQuestion['id'];
-            $deleteDescription = "{$loggedInUserEmail} deleted KPI question (dept: {$deletedQuestion['department']}): " .
+            $deleteDescription = "{$loggedInUserEmail} {$removalActions[(int)$deletedQuestion['id']]} KPI question (dept: {$deletedQuestion['department']}): " .
                 substr($deletedQuestion['question_text'], 0, 80);
             $logStmt->bind_param(
                 "iissis",
@@ -512,7 +496,8 @@ try {
     if ($logStmt && $kpiContext && companyUserWriteIsGranted($kpiContext)) $logStmt->close();
     companyKpiQuestionAuditGranted($conn, $userData, $kpiContext, $companyId,
         'bulk_update_kpi_questions', (int)($affectedIds[0] ?? 0),
-        'saved ' . count($affectedIds) . ' KPI questions and deleted ' . count($deletedQuestions));
+        'saved ' . count($affectedIds) . ' KPI questions, deleted ' . count($deletedIds) .
+        ', deactivated ' . count($deactivatedIds) . ' referenced questions');
     $conn->commit();
 
     $placeholders = implode(',', array_fill(0, count($affectedIds), '?'));
@@ -538,10 +523,14 @@ try {
     $saved = $fetchStmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $fetchStmt->close();
 
-    $deletedCount = count($deletedQuestions);
+    $deletedCount = count($deletedIds);
+    $deactivatedCount = count($deactivatedIds);
     $message = count($affectedIds) . " KPI question row(s) saved successfully";
     if ($deletedCount > 0) {
         $message .= "; {$deletedCount} question(s) deleted";
+    }
+    if ($deactivatedCount > 0) {
+        $message .= "; {$deactivatedCount} referenced question(s) deactivated to preserve staff assignments and appraisal history";
     }
 
     http_response_code(200);
@@ -549,7 +538,10 @@ try {
         "status"  => "Success",
         "message" => $message,
         "data"    => $saved,
-        "deleted_ids" => array_map('intval', array_column($deletedQuestions, 'id')),
+        "deleted_ids" => $deletedIds,
+        "deleted_count" => $deletedCount,
+        "deactivated_ids" => $deactivatedIds,
+        "deactivated_count" => $deactivatedCount,
     ]);
 
 } catch (Exception $e) {

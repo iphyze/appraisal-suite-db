@@ -4,6 +4,7 @@ require 'vendor/autoload.php';
 require_once 'includes/connection.php';
 require_once 'includes/authMiddleware.php';
 require_once 'includes/CompanyKpiQuestionAccess.php';
+require_once 'includes/KpiQuestionSafeDeletion.php';
 
 header('Content-Type: application/json');
 
@@ -57,35 +58,22 @@ try {
         }
 
         companyKpiQuestionAssertRow($conn, $userData, $kpiContext, $q);
-
-        // Block delete if already used in appraisal responses
-        $usedStmt = $conn->prepare("
-            SELECT COUNT(*) AS cnt FROM appraisal_kpi_responses WHERE kpi_question_id = ?
-        ");
-        $usedStmt->bind_param("i", $q['id']);
-        $usedStmt->execute();
-        $cnt = (int) $usedStmt->get_result()->fetch_assoc()['cnt'];
-        $usedStmt->close();
-
-        if ($cnt > 0) {
-            throw new Exception(
-                "Cannot delete question ID {$q['id']} — it has {$cnt} appraisal response(s). " .
-                "Deactivate it instead.",
-                400
-            );
-        }
     }
-
-    $validIds = array_column($found, 'id');
 
     $conn->begin_transaction();
     try {
-        $delPlaceholders = implode(',', array_fill(0, count($validIds), '?'));
-        $deleteStmt      = $conn->prepare("DELETE FROM kpi_questions WHERE id IN ({$delPlaceholders})");
-        $deleteStmt->bind_param(str_repeat('i', count($validIds)), ...$validIds);
-        if (!$deleteStmt->execute()) throw new Exception("Delete failed: " . $deleteStmt->error, 500);
-        $deletedCount = $deleteStmt->affected_rows;
-        $deleteStmt->close();
+        $deletedIds = [];
+        $deactivatedIds = [];
+        $actions = [];
+        foreach ($found as $q) {
+            $id = (int)$q['id'];
+            $action = kpiQuestionRemoveSafely($conn, $id, (int)$q['company_id'], $loggedInUserId);
+            $actions[$id] = $action;
+            if ($action === 'deleted') $deletedIds[] = $id;
+            else $deactivatedIds[] = $id;
+        }
+        $deletedCount = count($deletedIds);
+        $deactivatedCount = count($deactivatedIds);
 
         // Log one entry per question
         $logStmt = $conn->prepare("
@@ -94,10 +82,11 @@ try {
         ");
         foreach ($found as $q) {
             if ($kpiContext && companyUserWriteIsGranted($kpiContext)) continue;
-            $action      = "delete_kpi_question";
+            $action      = $actions[(int)$q['id']] === 'deleted'
+                ? "delete_kpi_question" : "deactivate_referenced_kpi_question";
             $targetTable = "kpi_questions";
             $targetId    = (int) $q['id'];
-            $description = "{$loggedInUserEmail} deleted KPI question (dept: {$q['department']}): " .
+            $description = "{$loggedInUserEmail} {$actions[(int)$q['id']]} KPI question (dept: {$q['department']}): " .
                            substr($q['question_text'], 0, 80);
             $logStmt->bind_param("iissis", $loggedInCompanyId, $loggedInUserId, $action, $targetTable, $targetId, $description);
             $logStmt->execute();
@@ -106,15 +95,21 @@ try {
 
         foreach ($found as $q) {
             companyKpiQuestionAuditGranted($conn, $userData, $kpiContext, (int)$q['company_id'],
-                'delete_kpi_question', (int)$q['id'], 'deleted KPI question #' . $q['id']);
+                $actions[(int)$q['id']] === 'deleted' ? 'delete_kpi_question' : 'deactivate_referenced_kpi_question',
+                (int)$q['id'], $actions[(int)$q['id']] . ' KPI question #' . $q['id']);
         }
         $conn->commit();
 
         http_response_code(200);
         echo json_encode([
             "status"  => "Success",
-            "message" => "{$deletedCount} KPI question(s) deleted successfully.",
-            "data"    => ["deleted_count" => $deletedCount, "deleted_ids" => $validIds]
+            "message" => $deactivatedCount > 0
+                ? "{$deletedCount} KPI question(s) deleted; {$deactivatedCount} referenced question(s) deactivated to preserve staff assignments and appraisal history."
+                : "{$deletedCount} KPI question(s) deleted successfully.",
+            "data"    => [
+                "deleted_count" => $deletedCount, "deleted_ids" => $deletedIds,
+                "deactivated_count" => $deactivatedCount, "deactivated_ids" => $deactivatedIds,
+            ]
         ]);
 
     } catch (Exception $e) {
