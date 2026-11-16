@@ -66,6 +66,17 @@ try {
     $available = opAvailableObjectives($conn, $ctx);
     $availableMap = [];
     foreach ($available as $row) $availableMap[(int)$row['id']] = $row;
+    // Permit saving an existing deactivated selection as a DRAFT only, so the
+    // supervisor can finish replacing/removing it later. The lock path remains
+    // strict, and inactive IDs can never be assigned to a different employee.
+    $priorInactiveSelections = [];
+    if (!$lock) {
+        foreach (opSelectedObjectives($conn, $sectionId, $staffUserId) as $selected) {
+            if ((int)($selected['is_active'] ?? 1) === 0) {
+                $priorInactiveSelections[(int)$selected['id']] = $selected;
+            }
+        }
+    }
 
     $normalized = [];
     $weightTotal = 0.0;
@@ -78,6 +89,17 @@ try {
             $seenQuestionIds[$questionId] = true;
         }
         $question = $questionId > 0 ? ($availableMap[$questionId] ?? null) : null;
+        if (!$question && !$lock && isset($priorInactiveSelections[$questionId])) {
+            $previous = $priorInactiveSelections[$questionId];
+            $question = [
+                'id' => $questionId,
+                'question_text' => $previous['question_text'],
+                'measure_target' => $previous['target'],
+                'evidence_source' => $previous['evidence_source'],
+                'weight_percent' => $previous['weight_percent'],
+                'scope' => $previous['scope'],
+            ];
+        }
 
         if (!$question) {
             if ($questionId > 0) throw new Exception('One selected objective is inactive or not available for this employee.', 400);

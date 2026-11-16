@@ -277,7 +277,7 @@ function opAvailableObjectives(mysqli $conn, array $ctx): array {
 }
 
 function opSelectedObjectives(mysqli $conn, int $sectionId, int $staffUserId): array {
-    $stmt = $conn->prepare("SELECT ska.id AS assignment_id, ska.kpi_question_id AS id, kq.objective_code, kq.question_text, COALESCE(ska.target_override,kq.measure_target) AS target, COALESCE(ska.evidence_override,kq.evidence_source) AS evidence_source, ska.target_override, ska.evidence_override, COALESCE(ska.weight_percent,kq.weight_percent) AS weight_percent, kq.review_status, kq.review_note, CASE WHEN kq.staff_user_id IS NOT NULL THEN 'individual' WHEN kq.supervisor_id IS NOT NULL THEN 'supervisor' ELSE 'department' END AS scope FROM staff_kpi_assignments ska INNER JOIN kpi_questions kq ON kq.id=ska.kpi_question_id WHERE ska.section_id=? AND ska.staff_user_id=? ORDER BY kq.sort_order ASC, ska.id ASC");
+    $stmt = $conn->prepare("SELECT ska.id AS assignment_id, ska.kpi_question_id AS id, kq.objective_code, kq.question_text, COALESCE(ska.target_override,kq.measure_target) AS target, COALESCE(ska.evidence_override,kq.evidence_source) AS evidence_source, ska.target_override, ska.evidence_override, COALESCE(ska.weight_percent,kq.weight_percent) AS weight_percent, kq.is_active, kq.review_status, kq.review_note, CASE WHEN kq.staff_user_id IS NOT NULL THEN 'individual' WHEN kq.supervisor_id IS NOT NULL THEN 'supervisor' ELSE 'department' END AS scope FROM staff_kpi_assignments ska INNER JOIN kpi_questions kq ON kq.id=ska.kpi_question_id WHERE ska.section_id=? AND ska.staff_user_id=? ORDER BY kq.sort_order ASC, ska.id ASC");
     $stmt->bind_param('ii', $sectionId, $staffUserId);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
