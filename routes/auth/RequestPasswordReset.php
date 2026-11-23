@@ -55,6 +55,18 @@ try {
         'message' => 'If this email belongs to an eligible account, a password reset link will be sent.',
         'message_key' => 'auth.recoveryRequested', 'message_params' => new stdClass()]);
 } catch (Throwable $error) {
+    // Log the server-side failure without exposing email addresses or SQL
+    // details to the browser. Missing migration 33 is a common cause of 500.
+    // Only the numeric driver error code is logged: never log a reset token,
+    // account existence or request body.
+    $driverCode = (int)$error->getCode();
+    if ($driverCode === 1146) {
+        error_log('[PasswordRecovery] Database table missing (MySQL 1146). Verify migration 33 was applied to the database configured for this API.');
+    } elseif ($driverCode === 1054) {
+        error_log('[PasswordRecovery] Database column missing (MySQL 1054). Verify the migration 33 schema matches the installed API.');
+    } else {
+        error_log('[PasswordRecovery] Forgot-password request failed: ' . get_class($error) . ' (code ' . $driverCode . ').');
+    }
     $status = (int)$error->getCode();
     $status = ($status >= 400 && $status <= 599) ? $status : 500;
     http_response_code($status);
