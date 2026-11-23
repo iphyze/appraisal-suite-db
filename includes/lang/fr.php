@@ -1,6 +1,11 @@
 <?php
 /** Recipient-facing email and notification catalogue (FR). */
 return [
+    "passwordRecovery.subject" => "Réinitialisez votre mot de passe AppraisalSuite",
+    "passwordRecovery.heading" => "Réinitialiser votre mot de passe",
+    "passwordRecovery.intro" => "Nous avons reçu une demande de réinitialisation de votre mot de passe AppraisalSuite. Utilisez ce lien sécurisé dans les 30 minutes.",
+    "passwordRecovery.button" => "Réinitialiser le mot de passe",
+    "passwordRecovery.note" => "Si vous n’êtes pas à l’origine de cette demande, ignorez ce message. Votre mot de passe ne changera pas. Ce lien n’est utilisable qu’une seule fois.",
     "layout.poweredBy" => "Propulsé par ",
     "layout.year" => "Évaluation {year}",
     "layout.footer" => "Ceci est un message automatique concernant votre évaluation professionnelle. Merci de ne pas répondre à cet e-mail.",

@@ -153,6 +153,8 @@ $routes = [
     '/auth/workspaces'      => 'routes/auth/Workspaces.php',
     '/auth/switch-workspace' => 'routes/auth/SwitchWorkspace.php',
     '/auth/change-password' => 'routes/auth/ChangePassword.php',
+    '/auth/forgot-password' => 'routes/auth/RequestPasswordReset.php',
+    '/auth/reset-forgotten-password' => 'routes/auth/ResetForgottenPassword.php',
 
     // Users
     '/users/list'           => 'routes/users/GetUsers.php',
@@ -357,6 +359,8 @@ if (!array_key_exists($relativePath, $routes)) {
 $publicRoutes = [
     '/',
     '/auth/login',
+    '/auth/forgot-password',
+    '/auth/reset-forgotten-password',
     '/companies/list',
 ];
 
@@ -386,6 +390,8 @@ $passwordGateExempt = [
 $csrfExemptRoutes = [
     '/',
     '/auth/login',
+    '/auth/forgot-password',
+    '/auth/reset-forgotten-password',
     '/auth/session',
     '/companies/list',
 ];

@@ -1,6 +1,11 @@
 <?php
 /** Recipient-facing email and notification catalogue (EN). */
 return [
+    "passwordRecovery.subject" => "Reset your AppraisalSuite password",
+    "passwordRecovery.heading" => "Reset your password",
+    "passwordRecovery.intro" => "We received a request to reset your AppraisalSuite password. Use the secure link below within 30 minutes.",
+    "passwordRecovery.button" => "Reset password",
+    "passwordRecovery.note" => "If you did not request this, ignore the message. Your password will not change. This link can only be used once.",
     "layout.poweredBy" => "Powered by ",
     "layout.year" => "{year} Appraisal",
     "layout.footer" => "This is an automated message about your staff appraisal. Please do not reply to this email.",
